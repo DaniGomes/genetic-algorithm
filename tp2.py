@@ -156,4 +156,4 @@ algoritmo_genetico(10, 20, True)
 solucoes = []
 for i in range(5):
     solucoes.append(algoritmo_genetico(10, 20, False))
-solucoes
+print(solucoes)
