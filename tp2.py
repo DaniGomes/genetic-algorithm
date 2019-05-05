@@ -1,3 +1,4 @@
+
 import gym
 import random
 from itertools import zip_longest
@@ -8,31 +9,20 @@ def recompensa(elem):
 
 def melhorIndividuo(populacao):
     populacao.sort(key = recompensa)
-    return populacao[0]
+    return populacao[0]['recompensa']
 
 def imprime(individuos):
     print('Número de indivíduos: ', len(individuos))
+    soma = 0
     for individuo in individuos:
         print(individuo['recompensa'])
-        
-# Criar indivíduo aleatório (um indivíduo é um conjunto de ações)
-def criaIndividuo(ambiente, num_acoes):
-    individuo = { 'acoes': [], 'recompensa': -100 }
-    for i in range(num_acoes):
-        individuo['acoes'].append(ambiente.action_space.sample())
-    return individuo
-
-# Criar população inicial
-def criaPopulacao(ambiente, tam_pop, num_acoes):
-    populacao = []
-    for i in range(tam_pop):
-        populacao.append(criaIndividuo(ambiente, num_acoes))
-    return populacao
+        soma += individuo['recompensa']
+    print('Média da população: ', soma/len(individuos))
 
 # Função de adaptação
 def fitness(individuo, ambiente):
     for acao in individuo['acoes']:
-        obs, rec, feita, info = ambiente.step(acao)
+        obs, rec, fim, info = ambiente.step(acao)
         
         if rec > individuo['recompensa']:
             individuo['recompensa'] = rec
@@ -45,6 +35,30 @@ def adaptacao(populacao, ambiente):
     populacao.sort(key = recompensa, reverse = True)
     return
 
+# Criar indivíduo aleatório (um indivíduo é um conjunto de ações)
+def criaIndividuo(ambiente, num_acoes):
+    individuo = { 'acoes': [], 'recompensa': -1000 }
+    for i in range(num_acoes):
+        individuo['acoes'].append(ambiente.action_space.sample())
+    individuo['recompensa'] = fitness(individuo, ambiente)
+    return individuo
+
+# Criar população inicial
+def criaPopulacao(ambiente, tam_pop, num_acoes):
+    populacao = []
+    for i in range(tam_pop):
+        populacao.append(criaIndividuo(ambiente, num_acoes))
+    return populacao
+
+def analisePopInicial(populacao):
+    negativo = True
+    em_pe = True
+    for individuo in populacao:
+        if individuo['recompensa'] == -100:
+            em_pe = False
+            break
+    return em_pe
+
 # Seleção 
 def naoCaiu(individuo):
     return individuo['recompensa'] != -100
@@ -52,7 +66,10 @@ def naoCaiu(individuo):
 def selecao(populacao, ambiente):
     adaptacao(populacao, ambiente)
     melhores = list(filter(naoCaiu, populacao))
-    return melhores 
+    if(len(melhores) == len(populacao)):
+        metade = int(len(melhores)/2)
+        melhores = melhores[0:metade]
+    return melhores
 
 # Reprodução
 def crossingOver(individuo1, individuo2, num_acoes):
@@ -86,23 +103,28 @@ def reproducao(pais, num_acoes, cruzamentos):
 
 # Mutação
 def mutacao(individuo, ambiente, num_acoes):
-    metade = int((num_acoes/2))
     if random.randint(0, 1):
         acao = ambiente.action_space.sample()
-        posicao = random.randint(0, metade-1)
+        posicao = random.randint(0, num_acoes-1)
         individuo['acoes'][posicao] = acao
     return
 
 # Algoritmo genético
-def algoritmo_genetico(tam_pop, num_acoes):
+def algoritmo_genetico(tam_pop, num_acoes, mostrar):
     ambiente = gym.make('BipedalWalker-v2')
+    
     ambiente.reset()
     populacao = criaPopulacao(ambiente, tam_pop, num_acoes)
     adaptacao(populacao, ambiente)
-    #analisePopInicial(populacao)
-
-    for j in range(500):
-        ambiente.render()
+    while(not analisePopInicial(populacao)):
+        ambiente.reset()
+        populacao = criaPopulacao(ambiente, tam_pop, num_acoes)
+        adaptacao(populacao, ambiente)
+    
+    for j in range(250):
+        if mostrar:
+            ambiente.render()
+        pos = [0]
         
         lista_pais = selecao(populacao, ambiente)
         filhos = reproducao(lista_pais, num_acoes, int(tam_pop/2))
@@ -112,12 +134,26 @@ def algoritmo_genetico(tam_pop, num_acoes):
         if len(populacao) > tam_pop:
             populacao = populacao[0:tam_pop]
     
-        taxa_mutacao = random.randint(0, int(tam_pop/2))
-        for t in range(taxa_mutacao):
-            mutacao(populacao[t], ambiente, num_acoes)
-
-    #solucao = melhorIndividuo(populacao)
+        pos.append(ambiente.hull.position[0])
+        if abs(pos[-1] - pos[-2]) < 0.5:
+            taxa_mutacao = random.randint(0, tam_pop-1)
+            for t in range(taxa_mutacao):
+                mutacao(populacao[t], ambiente, num_acoes)
+        
+        if ambiente.hull.position[0] > ambiente.terrain_x[-1]:
+            ambiente.close()
+            return 1
+        
+        if ambiente.hull.position[0] < ambiente.terrain_x[0]:
+            ambiente.close()
+            return 0
     
     ambiente.close()
+    return melhorIndividuo(populacao)
 
-    algoritmo_genetico(10, 20)
+algoritmo_genetico(10, 20, True)
+
+solucoes = []
+for i in range(5):
+    solucoes.append(algoritmo_genetico(10, 20, False))
+solucoes
