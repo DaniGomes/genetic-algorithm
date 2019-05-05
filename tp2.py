@@ -19,7 +19,7 @@ def imprime(individuos):
         soma += individuo['recompensa']
     print('Média da população: ', soma/len(individuos))
 
-# Função de adaptação
+# Adaptação
 def fitness(individuo, ambiente):
     for acao in individuo['acoes']:
         obs, rec, fim, info = ambiente.step(acao)
